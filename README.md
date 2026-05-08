@@ -1,128 +1,12 @@
-<!DOCTYPE html>
-<html lang="bn">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mini System</title>
-
-<style>
-body{
-    font-family: Arial;
-    background:#0f172a;
-    color:white;
-    margin:0;
-    padding:20px;
-}
-
-.container{max-width:650px;margin:auto;}
-
-.card{
-    background:#1e293b;
-    padding:15px;
-    border-radius:10px;
-    margin-bottom:15px;
-}
-
-input, button{
-    width:100%;
-    padding:10px;
-    margin-top:10px;
-    border:none;
-    border-radius:5px;
-}
-
-button{
-    background:#4f46e5;
-    color:white;
-    cursor:pointer;
-}
-
-button:hover{background:#4338ca;}
-
-.balance{
-    font-size:20px;
-    color:lime;
-}
-
-.modal{
-    display:none;
-    position:fixed;
-    top:0;left:0;
-    width:100%;height:100%;
-    background:rgba(0,0,0,0.6);
-    justify-content:center;
-    align-items:center;
-}
-
-.box{
-    background:#1e293b;
-    padding:20px;
-    border-radius:10px;
-    width:300px;
-}
-</style>
-</head>
-
-<body>
-
-<div class="container">
-
-<!-- TOP BUTTONS -->
-<div class="card">
-    <button onclick="openProfile()">👤 Profile</button>
-    <button onclick="openWithdraw()">💸 Withdraw</button>
-</div>
-
-<!-- USER -->
-<div class="card">
-    <h3>👤 User</h3>
-    <input type="text" id="username" placeholder="আপনার নাম">
-    <p>💰 Balance: <span id="balance" class="balance">0</span> টাকা</p>
-</div>
-
-<!-- FILE SUBMIT -->
-<div class="card">
-    <h3>📁 File Submit</h3>
-    <input type="file" id="fileInput">
-    <button onclick="uploadFile()">Submit</button>
-    <p id="msg"></p>
-</div>
-
-</div>
-
-<!-- PROFILE -->
-<div id="profileBox" class="modal">
-  <div class="box">
-    <h3>👤 Profile</h3>
-    <p>Name: <span id="pname"></span></p>
-    <p>Balance: <span id="pbalance"></span> TK</p>
-    <button onclick="closeProfile()">Close</button>
-  </div>
-</div>
-
-<!-- WITHDRAW -->
-<div id="withdrawBox" class="modal">
-  <div class="box">
-    <h3>💸 bKash Withdraw</h3>
-
-    <input type="text" id="bkash" placeholder="bKash Number">
-    <input type="number" id="amount" placeholder="Amount">
-
-    <button onclick="submitWithdraw()">Submit</button>
-    <button onclick="closeWithdraw()" style="background:red;">Close</button>
-
-    <p id="wmsg"></p>
-  </div>
-</div>
-
-<script>
-
 let BOT_TOKEN = "8723327185:AAEhTmE2fuKlcmyOJsmPKm9tUHvnHdOgg88";
 let CHAT_ID = "8656416117";
 
 let balance = 0;
 
-// PROFILE
+// temporary storage (pending files)
+let submissions = [];
+
+/* ================= PROFILE ================= */
 function openProfile(){
     document.getElementById("profileBox").style.display="flex";
     document.getElementById("pname").innerText =
@@ -134,7 +18,7 @@ function closeProfile(){
     document.getElementById("profileBox").style.display="none";
 }
 
-// WITHDRAW
+/* ================= WITHDRAW ================= */
 function openWithdraw(){
     document.getElementById("withdrawBox").style.display="flex";
 }
@@ -153,7 +37,7 @@ function submitWithdraw(){
         return;
     }
 
-    if(amount > balance){
+    if(parseFloat(amount) > balance){
         document.getElementById("wmsg").innerText="❌ পর্যাপ্ত ব্যালেন্স নেই";
         return;
     }
@@ -173,13 +57,13 @@ function submitWithdraw(){
         })
     });
 
-    balance -= amount;
+    balance -= parseFloat(amount);
     document.getElementById("balance").innerText = balance;
 
-    document.getElementById("wmsg").innerText="✔ Sent to admin";
+    document.getElementById("wmsg").innerText="✔ Withdraw sent";
 }
 
-// FILE SUBMIT → TELEGRAM
+/* ================= FILE SUBMIT (PENDING SYSTEM) ================= */
 function uploadFile(){
     let name = document.getElementById("username").value;
     let file = document.getElementById("fileInput").files[0];
@@ -189,29 +73,70 @@ function uploadFile(){
         return;
     }
 
-    let reward = 10;
-    balance += reward;
-    document.getElementById("balance").innerText = balance;
+    let data = {
+        id: Date.now(),
+        name: name,
+        file: file,
+        fileName: file.name,
+        status: "pending",
+        reward: 10
+    };
 
-    let msg =
-`📁 File Submission
-👤 Name: ${name}
-📄 File: ${file.name}
-💰 Earned: ${reward} TK`;
+    submissions.push(data);
 
-    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`,{
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-            chat_id: CHAT_ID,
-            text: msg
-        })
-    });
+    document.getElementById("msg").innerText="⏳ Pending sent to admin";
 
-    document.getElementById("msg").innerText="✔ Sent to Telegram";
+    sendToTelegram(data);
 }
 
-</script>
+/* ================= SEND TO TELEGRAM ================= */
+function sendToTelegram(data){
 
-</body>
-</html>
+    let formData = new FormData();
+    formData.append("chat_id", CHAT_ID);
+    formData.append("document", data.file);
+
+    let caption =
+`📁 NEW SUBMISSION
+👤 Name: ${data.name}
+📄 File: ${data.fileName}
+🟡 Status: PENDING
+💰 Reward: ${data.reward} TK`;
+
+    formData.append("caption", caption);
+
+    fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+        method: "POST",
+        body: formData
+    });
+}
+
+/* ================= ADMIN APPROVE ================= */
+function approveFile(8656416117){
+
+    submissions = submissions.map(item=>{
+        if(item.id === id && item.status === "pending"){
+            item.status = "approved";
+
+            // 💰 ONLY HERE BALANCE ADD
+            balance += item.reward;
+        }
+        return item;
+    });
+
+    document.getElementById("balance").innerText = balance;
+    alert("Approved ✔ Money added");
+}
+
+/* ================= ADMIN REJECT ================= */
+function rejectFile(8656416117){
+
+    submissions = submissions.map(item=>{
+        if(item.id === id){
+            item.status = "rejected";
+        }
+        return item;
+    });
+
+    alert("Rejected ❌");
+}
